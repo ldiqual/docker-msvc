@@ -115,10 +115,10 @@ async function installPackage({ pkg, dst }) {
         // return installVsix({ pkg, dst })
         break
     case 'exe':
-        console.log(pkg.name, pkg.payloads.map(p => p.url), 'exe')
+        console.log(pkg)
         break
     case 'msi':
-        return installMsi({ pkg, dst })
+        // return installMsi({ pkg, dst })
         break
     }
 }
