@@ -7,7 +7,7 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
         apt-transport-https \
         ca-certificates \
         gosu \
-        p7zip \
+        p7zip-full \
         unzip \
         wget \
         winbind \
@@ -67,19 +67,34 @@ USER wineuser:wineuser
 RUN WINEARCH=win32 xvfb-run --auto-servernum wine wineboot --init \
     && xvfb-run --auto-servernum winetricks -q dotnet461 cmd
 
-# Create C:\BuildTools
-RUN mkdir /home/wineuser/.wine/drive_c/BuildTools
-
-# Install build tools
-RUN mkdir /home/wineuser/deps
+# Install Build Tools
+RUN mkdir /home/wineuser/deps /home/wineuser/.wine/drive_c/BuildTools
 COPY deps/. /home/wineuser/deps/
-WORKDIR /home/wineuser/deps
-
-# RUN wget https://download.visualstudio.microsoft.com/download/pr/2b5bcd2f-0dbc-4b83-90a3-3b1c5ae77e62/0252474394129dbab6ff9ce24f1c6a3c/vc_redist.x86.exe -O /tmp/vc_redist.x86.exe \
-#     && xvfb-run --auto-servernum wine /tmp/vc_redist.x86.exe /q /norestart /log C:\Users\wineuser\Temp\Microsoft.VisualCpp.Redist.14,x86,14.16.27033.4.log
-
-RUN npm install \
+RUN cd /home/wineuser/deps \
+    && npm install \
     && xvfb-run --auto-servernum \
         node ./index.js /home/wineuser/.wine/drive_c/BuildTools
+        
+# Download & extract windows SDK
+RUN wget https://go.microsoft.com/fwlink/p/?linkid=870809 -O /home/wineuser/win10sdk.iso \
+    && mkdir /home/wineuser/win10sdk \
+    && cd /home/wineuser/win10sdk \
+    && 7z x ../win10sdk.iso \
+    && rm ../win10sdk.iso
+
+# Install Windows SDK
+RUN cd /home/wineuser/win10sdk/Installers \
+    && winetricks -q win10 \
+    && wine msiexec /i "Windows SDK Desktop Headers x64-x86_en-us.msi" /qn \
+    && wine msiexec /i "Windows SDK Desktop Headers x86-x86_en-us.msi" /qn \ 
+    && wine msiexec /i "Windows SDK Desktop Libs x64-x86_en-us.msi" /qn \ 
+    && wine msiexec /i "Windows SDK Desktop Libs x86-x86_en-us.msi" /qn \ 
+    && wine msiexec /i "Windows SDK Desktop Tools x64-x86_en-us.msi" /qn \
+    && wine msiexec /i "Windows SDK Desktop Tools x86-x86_en-us.msi" /qn \
+    && wine msiexec /i "Windows SDK for Windows Store Apps Headers-x86_en-us.msi" /qn \
+    && wine msiexec /i "Windows SDK for Windows Store Apps Libs-x86_en-us.msi" /qn \
+    && wine msiexec /i "Windows SDK for Windows Store Apps Tools-x86_en-us.msi" /qn \
+    && wine msiexec /i "Windows SDK for Windows Store Apps Legacy Tools-x86_en-us.msi" /qn \
+    && wine msiexec /i "Universal CRT Headers Libraries and Sources-x86_en-us.msi" /qn
 
 ENTRYPOINT ["/usr/bin/entrypoint"]
