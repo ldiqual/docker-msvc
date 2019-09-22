@@ -69,11 +69,11 @@ async function installVsix({ pkg, dst }) {
     const { path: zipPath } = await tmp.file()
     const url = pkg.payloads[0].url
     
-    console.log(`Downloading ${pkg.id}`)
+    console.log(`Downloading ${pkg.name}`)
     await downloadFile({ src: url, dst: zipPath })
     await Promise.delay(0.5)
     
-    console.log(`Decompressing ${pkg.id}`)
+    console.log(`Decompressing ${pkg.name}`)
     await decompress(zipPath, dst, {
         filter: file => _.startsWith(file.path, 'Contents/'),
         map: file => {
@@ -85,7 +85,7 @@ async function installVsix({ pkg, dst }) {
 
 async function installMsi({ pkg, dst }) {
     
-    console.log(`Downloading ${pkg.id}`)
+    console.log(`Downloading ${pkg.name}`)
     const { path: downloadDir } = await tmp.dir()
     for (const payload of pkg.payloads) {
         await downloadFile({
@@ -94,14 +94,19 @@ async function installMsi({ pkg, dst }) {
         })
     }
     
-    console.log(`Installing ${pkg.id}`)
+    console.log(`Installing ${pkg.name}`)
     const msiPayload = _.find(pkg.payloads, payload => _.endsWith(payload.fileName, 'msi'))
     const msiProperties = _.map(pkg.msiProperties || {}, (value, key) => `${key}=${value}`)
     await runCommand('msiexec', [
         '/i', path.join(downloadDir, msiPayload.fileName),
         ...msiProperties,
         '/qn',
-    ])
+    ], {
+        env: {
+            ...process.env,
+            WINEDEBUG: '-all,+msiexec'
+        }
+    })
 }
 
 async function installPackage({ pkg, dst }) {
@@ -110,7 +115,7 @@ async function installPackage({ pkg, dst }) {
         // return installVsix({ pkg, dst })
         break
     case 'exe':
-        console.log(pkg.id, pkg.payloads.map(p => p.url), 'exe')
+        console.log(pkg.name, pkg.payloads.map(p => p.url), 'exe')
         break
     case 'msi':
         return installMsi({ pkg, dst })
@@ -158,20 +163,31 @@ async function run() {
         id: 'Microsoft.VisualStudio.Product.BuildTools'
     })
     
-    // Remove duplicates
-    const uniquePackages = _.uniqBy([...vcToolsPackages, ...buildToolsPackages], pkg => {
-        const chip = pkg.chip || 'neutral'
-        return `${pkg.id}-${chip}`
+    // Gather all packages and generate a unique name
+    const allPackages = _.map([...vcToolsPackages, ...buildToolsPackages], pkg => {
+        return {
+            ...pkg,
+            name: `${pkg.id},${pkg.chip || 'neutral'},${pkg.version}`
+        }
     })
     
-    console.log(uniquePackages.map(pkg => pkg.id))
+    // Remove duplicates
+    const uniquePackages = _.uniqBy(allPackages, 'name')
     
-    // Install all pages
-    for (const pkg of uniquePackages) {
+    // Remove x64
+    const x86Packages = _.filter(uniquePackages, pkg => {
+        return (pkg.chip || '').toLowerCase() !== 'x64'
+    })
+    
+    console.log('Packages to install', x86Packages.map(pkg => pkg.name))
+    
+    // Install all packages
+    for (const pkg of x86Packages) {
         await installPackage({ pkg, dst: extractPath })
     }
 }
 
 run().catch(err => {
     console.error(err.stack)
+    process.exit(1)
 })
