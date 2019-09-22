@@ -1,0 +1,28 @@
+{
+  "name": "deps",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bluebird": "^3.5.5",
+    "decompress": "^4.2.0",
+    "dependency-graph": "^0.8.0",
+    "download": "^7.1.0",
+    "execa": "^2.0.4",
+    "fs-extra": "^8.1.0",
+    "lodash": "^4.17.15",
+    "node-fetch": "^2.6.0",
+    "tmp-promise": "^2.0.2"
+  },
+  "devDependencies": {
+    "@scoop/eslint-config-scoop": "^5.0.0",
+    "eslint": "^5.16.0",
+    "eslint-plugin-dependencies": "^2.4.0",
+    "eslint-plugin-implicit-dependencies": "^1.0.4"
+  }
+}
