@@ -74,8 +74,12 @@ RUN mkdir /home/wineuser/.wine/drive_c/BuildTools
 RUN mkdir /home/wineuser/deps
 COPY deps/. /home/wineuser/deps/
 WORKDIR /home/wineuser/deps
+
+# RUN wget https://download.visualstudio.microsoft.com/download/pr/2b5bcd2f-0dbc-4b83-90a3-3b1c5ae77e62/0252474394129dbab6ff9ce24f1c6a3c/vc_redist.x86.exe -O /tmp/vc_redist.x86.exe \
+#     && xvfb-run --auto-servernum wine /tmp/vc_redist.x86.exe /q /norestart /log C:\Users\wineuser\Temp\Microsoft.VisualCpp.Redist.14,x86,14.16.27033.4.log
+
 RUN npm install \
-    && ls -l \
-    && node ./index.js /home/wineuser/.wine/drive_c/BuildTools
+    && xvfb-run --auto-servernum \
+        node ./index.js /home/wineuser/.wine/drive_c/BuildTools
 
 ENTRYPOINT ["/usr/bin/entrypoint"]

@@ -40,20 +40,27 @@ function findPackageAndDependencies({ json, id, chip }) {
             return hasSameChip || isChipNeutral
         }
         
+        if (pkg.chip && _.includes(['x64', 'arm64'], pkg.chip.toLowerCase())) {
+            return false
+        }
+        
         return true
     })
     
     const ignoredDependencies = [
-        'Microsoft.Net.4.6.1.FullRedist.Resources',
-        'Microsoft.Net.4.6.1.SDK.Resources'
+        'Microsoft.Net.4.6.1.FullRedist.Threshold',
+        'Microsoft.Net.4.6.1.FullRedist.NonThreshold'
     ]
     
     const dependencies = _.flatten(_.map(packages, pkg => {
         const filteredDependencies = _.pickBy(_.omit(pkg.dependencies, ignoredDependencies), dep => {
-            if (!dep.type) {
-                return true
+            if (dep.type && _.includes(['optional', 'recommended'], dep.type.toLowerCase())) {
+                return false
             }
-            return dep.type.toLowerCase() !== 'optional' && dep.type.toLowerCase() !== 'recommended'
+            if (dep.chip && _.includes(['x64', 'arm64'], dep.chip.toLowerCase())) {
+                return false
+            }
+            return true
         })
         return _.flatten(_.map(filteredDependencies, (dep, depId) => {
             const chip = _.isObject(dep) ? dep.chip : null
@@ -109,17 +116,47 @@ async function installMsi({ pkg, dst }) {
     })
 }
 
+async function installExe({ pkg, dst }) {
+    
+    const { path: downloadDir } = await tmp.dir()
+    
+    console.log(`Downloading ${pkg.name}`)
+    const payload = pkg.payloads[0]
+    await downloadFile({
+        src: payload.url,
+        dst: path.join(downloadDir, payload.fileName)
+    })
+    
+    const params = {
+        '[LogFile]': `C:\\Users\\wineuser\\Temp\\${pkg.name}.log`,
+        '[Payload]': payload.fileName,
+        '[CEIPConsent]': ''
+    }
+    let installParams = pkg.installParams.parameters
+    _.forEach(params, (value, key) => {
+        const regex = new RegExp(_.escapeRegExp(key), 'g')
+        installParams = installParams.replace(regex, value)
+    })
+    
+    console.log(`Installing ${pkg.name}`)
+    await runCommand('wine', [
+        path.join(downloadDir, payload.fileName),
+        ...installParams.split(' ')
+    ], {
+        shell: true,
+    })
+}
+
 async function installPackage({ pkg, dst }) {
     switch (pkg.type.toLowerCase()) {
-    case 'vsix':
-        // return installVsix({ pkg, dst })
-        break
-    case 'exe':
-        console.log(pkg)
-        break
-    case 'msi':
-        // return installMsi({ pkg, dst })
-        break
+        case 'vsix':
+            return installVsix({ pkg, dst })
+        case 'exe':
+            return installExe({ pkg, dst })
+        case 'msi':
+            return installMsi({ pkg, dst })
+        default:
+            console.log(`Ignoring installation steps for package type ${pkg.type}`)
     }
 }
 
@@ -174,15 +211,10 @@ async function run() {
     // Remove duplicates
     const uniquePackages = _.uniqBy(allPackages, 'name')
     
-    // Remove x64
-    const x86Packages = _.filter(uniquePackages, pkg => {
-        return (pkg.chip || '').toLowerCase() !== 'x64'
-    })
-    
-    console.log('Packages to install', x86Packages.map(pkg => pkg.name))
+    console.log('Packages to install', uniquePackages.map(pkg => pkg.name))
     
     // Install all packages
-    for (const pkg of x86Packages) {
+    for (const pkg of uniquePackages) {
         await installPackage({ pkg, dst: extractPath })
     }
 }
