@@ -1,7 +1,8 @@
+'use strict'
+
 const _ = require('lodash')
 const fs = require('fs-extra')
 const Promise = require('bluebird')
-const DepGraph = require('dependency-graph').DepGraph
 const path = require('path')
 const tmp = require('tmp-promise')
 const decompress = require('decompress')
@@ -69,7 +70,7 @@ async function installVsix({ pkg, dst }) {
     const url = pkg.payloads[0].url
     
     console.log(`Downloading ${pkg.id}`)
-    const zipPath = await downloadFile({ src: url, dst: zipPath })
+    await downloadFile({ src: url, dst: zipPath })
     await Promise.delay(0.5)
     
     console.log(`Decompressing ${pkg.id}`)
@@ -110,10 +111,10 @@ async function installPackage({ pkg, dst }) {
         break
     case 'exe':
         console.log(pkg.id, pkg.payloads.map(p => p.url), 'exe')
-        break;
+        break
     case 'msi':
         return installMsi({ pkg, dst })
-        break;
+        break
     }
 }
 
@@ -166,7 +167,7 @@ async function run() {
     console.log(uniquePackages.map(pkg => pkg.id))
     
     // Install all pages
-    for (pkg of uniquePackages) {
+    for (const pkg of uniquePackages) {
         await installPackage({ pkg, dst: extractPath })
     }
 }

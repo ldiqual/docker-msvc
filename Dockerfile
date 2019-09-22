@@ -71,9 +71,11 @@ RUN WINEARCH=win32 xvfb-run --auto-servernum wine wineboot --init \
 RUN mkdir /home/wineuser/.wine/drive_c/BuildTools
 
 # Install build tools
-ADD deps/ /home/wineuser/
+RUN mkdir /home/wineuser/deps
+COPY deps/. /home/wineuser/deps/
 WORKDIR /home/wineuser/deps
 RUN npm install \
-    && node index.js /home/wineuser/.wine/drive_c/BuildTools
+    && ls -l \
+    && node ./index.js /home/wineuser/.wine/drive_c/BuildTools
 
 ENTRYPOINT ["/usr/bin/entrypoint"]
