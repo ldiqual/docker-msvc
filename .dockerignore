@@ -2,3 +2,5 @@ workarounds/vs-installer/node_modules
 workarounds/vs-installer/.gitignore
 workarounds/vs-installer/.eslintrc
 workarounds/vs-installer/.nvmrc
+.git
+.github
