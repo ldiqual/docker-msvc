@@ -1,5 +1,8 @@
 FROM ubuntu:bionic
 
+ENV WINE_VERSION 4.16
+ENV WINEPATH C:\Python27\;C:\Python27\Scripts;C:\windows\system32;C:\windows;C:\windows\system32\wbem
+
 # Install package dependencies
 RUN export DEBIAN_FRONTEND="noninteractive" \
     && apt-get update \
@@ -22,8 +25,6 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
 # Install node
 RUN wget -O- https://deb.nodesource.com/setup_10.x | bash
 RUN apt-get install -y nodejs
-
-ENV WINE_VERSION 4.16
 
 # Install wine
 RUN wget https://dl.winehq.org/wine-builds/winehq.key \
@@ -65,6 +66,8 @@ RUN GECKO_VERSION=$(wget -O- ${ADDONS_C_URL} | grep '#define GECKO_VERSION' | se
     && wget https://dl.winehq.org/wine/wine-gecko/${GECKO_VERSION}/wine_gecko-${GECKO_VERSION}-x86_64.msi -O /usr/share/wine/gecko/wine_gecko-${GECKO_VERSION}-x86_64.msi \
     && chown wineuser:wineuser /usr/share/wine/gecko/wine_gecko-${GECKO_VERSION}-x86.msi \
     && chown wineuser:wineuser /usr/share/wine/gecko/wine_gecko-${GECKO_VERSION}-x86_64.msi
+    
+ENV ADDONS_C_URL=
 
 # Now we're wineuser
 USER wineuser:wineuser
@@ -113,7 +116,7 @@ RUN wget https://www.python.org/ftp/python/2.7.16/python-2.7.16.msi -O ${HOME}/p
     && rm ${HOME}/python-2.7.16.msi
     
 # Patch VsDevCmd.bat to workaround https://bugs.winehq.org/show_bug.cgi?id=47791
-COPY ./VsDevCmd.bat.patch /home/wineuser/VsDevCmd.bat.patch
+COPY workarounds/VsDevCmd.bat.patch /home/wineuser/VsDevCmd.bat.patch
 RUN patch \
     ${HOME}/.wine/drive_c/BuildTools/Common7/Tools/VsDevCmd.bat \
     ${HOME}/VsDevCmd.bat.patch \
