@@ -211,7 +211,7 @@ async function run() {
     // Remove duplicates
     const uniquePackages = _.uniqBy(allPackages, 'name')
     
-    console.log('Packages to install', uniquePackages.map(pkg => pkg.name))
+    console.log('Packages to install', _.map(uniquePackages, 'name'))
     
     // Install all packages
     for (const pkg of uniquePackages) {
