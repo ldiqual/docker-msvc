@@ -10,5 +10,7 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - run: docker login docker.pkg.github.com -u ldiqual -p ${GITHUB_TOKEN}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     # - run: docker build . -t ldiqual/docker-msvc
     
