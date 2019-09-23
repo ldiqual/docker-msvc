@@ -16,7 +16,8 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
         xvfb \
         gpg-agent \
         cabextract \
-        patch
+        patch \
+        vim
         
 # Install node
 RUN wget -O- https://deb.nodesource.com/setup_10.x | bash
@@ -47,15 +48,17 @@ RUN chmod +x /usr/bin/entrypoint
 ADD --chown=wineuser:wineuser https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks /usr/bin/winetricks
 RUN chmod +x /usr/bin/winetricks
 
+# Url of wine's addons.c which contains the mono & gecko versions specific to this wine release
+# Example: https://github.com/wine-mirror/wine/blob/wine-4.16/dlls/appwiz.cpl/addons.c#L61
 ENV ADDONS_C_URL https://raw.githubusercontent.com/wine-mirror/wine/wine-${WINE_VERSION}/dlls/appwiz.cpl/addons.c
 
-# Install wine-mono
+# Download wine-mono for later automatic install by wineboot
 RUN mkdir -p /usr/share/wine/mono
 RUN MONO_VERSION=$(wget -O- ${ADDONS_C_URL} | grep '#define MONO_VERSION' | sed -n 's/.*"\(.*\)"/\1/p') \
     && wget https://dl.winehq.org/wine/wine-mono/${MONO_VERSION}/wine-mono-${MONO_VERSION}.msi -O /usr/share/wine/mono/wine-mono-${MONO_VERSION}.msi \
     && chown wineuser:wineuser /usr/share/wine/mono/wine-mono-${MONO_VERSION}.msi
 
-# Install wine-gecko
+# Install wine-gecko for later automatic install by wineboot
 RUN mkdir -p /usr/share/wine/gecko
 RUN GECKO_VERSION=$(wget -O- ${ADDONS_C_URL} | grep '#define GECKO_VERSION' | sed -n 's/.*"\(.*\)"/\1/p') \
     && wget https://dl.winehq.org/wine/wine-gecko/${GECKO_VERSION}/wine_gecko-${GECKO_VERSION}-x86.msi -O /usr/share/wine/gecko/wine_gecko-${GECKO_VERSION}-x86.msi \
@@ -65,45 +68,59 @@ RUN GECKO_VERSION=$(wget -O- ${ADDONS_C_URL} | grep '#define GECKO_VERSION' | se
 
 # Now we're wineuser
 USER wineuser:wineuser
+WORKDIR /home/wineuser
 
+# Create a 32-bit wine prefix and install .NET
 RUN WINEARCH=win32 xvfb-run --auto-servernum wine wineboot --init \
     && xvfb-run --auto-servernum winetricks -q dotnet461 cmd
 
 # Install Build Tools
 # Workaround for https://bugs.winehq.org/show_bug.cgi?id=47785 which prevents vs_BuildTools.exe from validating microsoft certificates
-RUN mkdir /home/wineuser/deps /home/wineuser/.wine/drive_c/BuildTools
+RUN mkdir ${HOME}/deps ${HOME}/.wine/drive_c/BuildTools
 COPY deps/. /home/wineuser/deps/
-RUN cd /home/wineuser/deps \
+RUN cd ${HOME}/deps \
     && npm install \
     && xvfb-run --auto-servernum \
-        node ./index.js /home/wineuser/.wine/drive_c/BuildTools
-        
+        node ./index.js ${HOME}/.wine/drive_c/BuildTools \
+    && rm -rf ${HOME}/deps
+
 # Download & extract windows SDK
-RUN wget https://go.microsoft.com/fwlink/p/?linkid=870809 -O /home/wineuser/win10sdk.iso \
-    && mkdir /home/wineuser/win10sdk \
-    && cd /home/wineuser/win10sdk \
+RUN wget https://go.microsoft.com/fwlink/p/?linkid=870809 -O ${HOME}/win10sdk.iso \
+    && mkdir ${HOME}/win10sdk \
+    && cd ${HOME}/win10sdk \
     && 7z x ../win10sdk.iso \
     && rm ../win10sdk.iso
 
 # Install Windows SDK
-RUN cd /home/wineuser/win10sdk/Installers \
+RUN cd ${HOME}/win10sdk/Installers \
     && winetricks -q win10 \
     && wine msiexec /i "Windows SDK Desktop Headers x64-x86_en-us.msi" /qn \
-    && wine msiexec /i "Windows SDK Desktop Headers x86-x86_en-us.msi" /qn \ 
-    && wine msiexec /i "Windows SDK Desktop Libs x64-x86_en-us.msi" /qn \ 
-    && wine msiexec /i "Windows SDK Desktop Libs x86-x86_en-us.msi" /qn \ 
+    && wine msiexec /i "Windows SDK Desktop Headers x86-x86_en-us.msi" /qn \
+    && wine msiexec /i "Windows SDK Desktop Libs x64-x86_en-us.msi" /qn \
+    && wine msiexec /i "Windows SDK Desktop Libs x86-x86_en-us.msi" /qn \
     && wine msiexec /i "Windows SDK Desktop Tools x64-x86_en-us.msi" /qn \
     && wine msiexec /i "Windows SDK Desktop Tools x86-x86_en-us.msi" /qn \
     && wine msiexec /i "Windows SDK for Windows Store Apps Headers-x86_en-us.msi" /qn \
     && wine msiexec /i "Windows SDK for Windows Store Apps Libs-x86_en-us.msi" /qn \
     && wine msiexec /i "Windows SDK for Windows Store Apps Tools-x86_en-us.msi" /qn \
     && wine msiexec /i "Windows SDK for Windows Store Apps Legacy Tools-x86_en-us.msi" /qn \
-    && wine msiexec /i "Universal CRT Headers Libraries and Sources-x86_en-us.msi" /qn
+    && wine msiexec /i "Universal CRT Headers Libraries and Sources-x86_en-us.msi" /qn \
+    && rm -rf ${HOME}/win10sdk
+
+# Install Python 2.7
+RUN wget https://www.python.org/ftp/python/2.7.16/python-2.7.16.msi -O ${HOME}/python-2.7.16.msi \
+    && wine msiexec /i ${HOME}/python-2.7.16.msi /q \
+    && rm ${HOME}/python-2.7.16.msi
     
 # Patch VsDevCmd.bat to workaround https://bugs.winehq.org/show_bug.cgi?id=47791
 COPY ./VsDevCmd.bat.patch /home/wineuser/VsDevCmd.bat.patch
 RUN patch \
-    /home/wineuser/.wine/drive_c/BuildTools/Common7/Tools/VsDevCmd.bat \
-    /home/wineuser/VsDevCmd.bat.patch
+    ${HOME}/.wine/drive_c/BuildTools/Common7/Tools/VsDevCmd.bat \
+    ${HOME}/VsDevCmd.bat.patch \
+    && rm ${HOME}/VsDevCmd.bat.patch
+
+# Install which.exe which serves as a replacement for the missing where.exe
+RUN wget http://www.malsmith.net/download/?obj=which/latest-stable/win32-unicode/which.exe -O ${HOME}/.wine/drive_c/windows/system32/which.exe \
+    && ln -s ${HOME}/.wine/drive_c/windows/system32/which.exe ${HOME}/.wine/drive_c/windows/system32/where.exe
 
 ENTRYPOINT ["/usr/bin/entrypoint"]
