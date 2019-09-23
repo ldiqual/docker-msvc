@@ -16,6 +16,10 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
         gpg-agent \
         cabextract
         
+# Install node
+RUN wget -O- https://deb.nodesource.com/setup_10.x | bash
+RUN apt-get install -y nodejs
+
 ENV WINE_VERSION 4.16
 
 # Install wine
@@ -40,10 +44,6 @@ RUN chmod +x /usr/bin/entrypoint
 # Install winetricks
 ADD --chown=wineuser:wineuser https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks /usr/bin/winetricks
 RUN chmod +x /usr/bin/winetricks
-
-# Install node
-RUN wget -O- https://deb.nodesource.com/setup_10.x | bash
-RUN apt-get install -y nodejs
 
 ENV ADDONS_C_URL https://raw.githubusercontent.com/wine-mirror/wine/wine-${WINE_VERSION}/dlls/appwiz.cpl/addons.c
 
