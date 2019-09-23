@@ -1,6 +1,9 @@
 name: Docker Build
 
-on: [push]
+on:
+  push:
+    branches:
+      - master
 
 jobs:
   build:
@@ -9,11 +12,13 @@ jobs:
     
     steps:
     - uses: actions/checkout@v1
-    - name: Log in to registry
-      uses: actions/docker/login@master
+    - run: echo ${DOCKER_PASSWORD} | docker login ${DOCKER_REGISTRY_URL} -u ${DOCKER_USERNAME} --password-stdin
       env:
         DOCKER_REGISTRY_URL: docker.pkg.github.com
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    # - run: docker build . -t ldiqual/docker-msvc
+    - run: docker build . -t ${DOCKER_REGISTRY_URL}/ldiqual/docker-msvc/docker:latest
+      env:
+        DOCKER_REGISTRY_URL: docker.pkg.github.com
+    - run: docker push -t ${DOCKER_REGISTRY_URL}/ldiqual/docker-msvc/docker:latest
     
