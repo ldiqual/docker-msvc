@@ -1,0 +1,17 @@
+--- VsDevCmd.bat	2019-09-22 21:33:37.000000000 -0700
++++ VsDevCmd.bat.after	2019-09-22 21:30:32.000000000 -0700
+@@ -124,14 +124,9 @@
+     exit /B 1
+ )
+ 
+-if "%VSCMD_TEST%" NEQ "" set __VSCMD_INTERNAL_INIT_STATE=test
+-if "%VSCMD_ARG_CLEAN_ENV%" NEQ "" set __VSCMD_INTERNAL_INIT_STATE=clean
+-
+ if "%VSCMD_DEBUG%" GEQ "1" @echo [DEBUG:%~nx0] calling "%1"
+ call "%VS150COMNTOOLS%vsdevcmd\%1"
+ 
+-set __VSCMD_INTERNAL_INIT_STATE=
+-
+ if "%ERRORLEVEL%" NEQ "0" (
+     if "%VSCMD_DEBUG%" NEQ "" @echo [ERROR:%1] init:FAILED code:%ERRORLEVEL%
+ 
