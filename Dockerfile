@@ -79,9 +79,9 @@ RUN WINEARCH=win32 xvfb-run --auto-servernum wine wineboot --init \
 
 # Install Build Tools
 # Workaround for https://bugs.winehq.org/show_bug.cgi?id=47785 which prevents vs_BuildTools.exe from validating microsoft certificates
-RUN mkdir ${HOME}/deps ${HOME}/.wine/drive_c/BuildTools
-COPY deps/. /home/wineuser/deps/
-RUN cd ${HOME}/deps \
+RUN mkdir ${HOME}/vs-installer ${HOME}/.wine/drive_c/BuildTools
+COPY workarounds/vs-installer/. /home/wineuser/vs-installer/
+RUN cd ${HOME}/vs-installer \
     && npm install \
     && xvfb-run --auto-servernum \
         node ./index.js ${HOME}/.wine/drive_c/BuildTools \
@@ -126,4 +126,5 @@ RUN patch \
 RUN wget http://www.malsmith.net/download/?obj=which/latest-stable/win32-unicode/which.exe -O ${HOME}/.wine/drive_c/windows/system32/which.exe \
     && ln -s ${HOME}/.wine/drive_c/windows/system32/which.exe ${HOME}/.wine/drive_c/windows/system32/where.exe
 
-ENTRYPOINT ["/usr/bin/entrypoint"]
+ENTRYPOINT ["bash"]
+CMD ["bash"]

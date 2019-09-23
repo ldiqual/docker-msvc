@@ -1,4 +1,4 @@
-deps/node_modules
-deps/.gitignore
-deps/.eslintrc
-deps/.nvmrc
+workarounds/vs-installer/node_modules
+workarounds/vs-installer/.gitignore
+workarounds/vs-installer/.eslintrc
+workarounds/vs-installer/.nvmrc

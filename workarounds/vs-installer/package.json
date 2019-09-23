@@ -1,5 +1,6 @@
 {
-  "name": "deps",
+  "name": "vs-installer",
+  "private": true,
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
