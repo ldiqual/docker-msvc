@@ -1,0 +1,14 @@
+name: Docker Build
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v1
+    - run: docker login docker.pkg.github.com -u ldiqual -p ${GITHUB_TOKEN}
+    # - run: docker build . -t ldiqual/docker-msvc
+    
