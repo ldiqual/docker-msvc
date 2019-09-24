@@ -12,13 +12,10 @@ jobs:
     
     steps:
     - uses: actions/checkout@v1
-    - run: echo ${DOCKER_PASSWORD} | docker login ${DOCKER_REGISTRY_URL} -u ${DOCKER_USERNAME} --password-stdin
+    - run: echo ${DOCKER_PASSWORD} | docker login $docker.pkg.github.com -u ${DOCKER_USERNAME} --password-stdin
       env:
-        DOCKER_REGISTRY_URL: docker.pkg.github.com
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    - run: docker build . -t ${DOCKER_REGISTRY_URL}/ldiqual/docker-msvc/docker:latest
-      env:
-        DOCKER_REGISTRY_URL: docker.pkg.github.com
-    - run: docker push ${DOCKER_REGISTRY_URL}/ldiqual/docker-msvc/docker:latest
+    - run: docker build . -t docker.pkg.github.com/ldiqual/docker-msvc/docker:latest
+    - run: docker push docker.pkg.github.com/ldiqual/docker-msvc/docker:latest
     

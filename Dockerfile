@@ -10,7 +10,6 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
         --no-install-recommends \
         apt-transport-https \
         ca-certificates \
-        gosu \
         p7zip-full \
         unzip \
         wget \
@@ -108,7 +107,8 @@ RUN cd ${HOME}/win10sdk/Installers \
     && wine msiexec /i "Windows SDK for Windows Store Apps Tools-x86_en-us.msi" /qn \
     && wine msiexec /i "Windows SDK for Windows Store Apps Legacy Tools-x86_en-us.msi" /qn \
     && wine msiexec /i "Universal CRT Headers Libraries and Sources-x86_en-us.msi" /qn \
-    && rm -rf ${HOME}/win10sdk
+    && rm -rf ${HOME}/win10sdk \
+    && wineserver -w
 
 # Install Python 2.7
 RUN wget https://www.python.org/ftp/python/2.7.16/python-2.7.16.msi -O ${HOME}/python-2.7.16.msi \
