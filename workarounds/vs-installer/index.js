@@ -9,6 +9,8 @@ const decompress = require('decompress')
 const download = require('download')
 const fetch = require('node-fetch')
 const execa = require('execa')
+const Papa = require('papaparse')
+const yargs = require('yargs')
 
 async function downloadFile({ src, dst }) {
     console.log(`Downloading ${src}`)
@@ -160,25 +162,117 @@ async function installPackage({ pkg, dst }) {
     }
 }
 
-async function run() {
+async function installWindowsSDK({ catalogJson }) {
     
-    let extractPath = process.argv.length > 2 ? path.resolve(_.last(process.argv)) : null
-    if (extractPath === null) {
-        const { path: tmpDir } = await tmp.dir()
-        extractPath = tmpDir
+    console.log('Downloading & Installing Windows SDK')
+    
+    const toolsPackage = _.find(catalogJson.packages, pkg => pkg.id === 'Microsoft.VisualStudio.Workload.VCTools')
+    const winSdkDependency = _.first(_.keys(
+        _.pickBy(toolsPackage.dependencies, (depObject, depId) => {
+            if (!_.isObject(depObject)) {
+                return false
+            }
+            return depObject.type.toLowerCase() === 'recommended'
+                && _.startsWith(depId, 'Microsoft.VisualStudio.Component.Windows10SDK')
+        })
+    ))
+    const winSdkVersion = _.last(winSdkDependency.split('.'))
+    console.log(`Windows SDK version ${winSdkVersion}`)
+    
+    const exePackage = _.find(catalogJson.packages, pkg => pkg.id === `Win10SDK_10.0.${winSdkVersion}`)
+    
+    // To get a list of available Windows SDK components, run:
+    // $ cat channel.vsman.json | jq '.packages[] | select(.id =="Win10SDK_10.0.17763") | .payloads[].fileName' | grep -i msi
+    const msiNames = [
+        'Windows SDK-x86_en-us.msi',
+        'Windows SDK Modern Versioned Developer Tools-x86_en-us.msi',
+        'Windows SDK Desktop Headers x64-x86_en-us.msi',
+        'Windows SDK Desktop Headers x86-x86_en-us.msi',
+        'Windows SDK Desktop Libs x64-x86_en-us.msi',
+        'Windows SDK Desktop Libs x86-x86_en-us.msi',
+        'Windows SDK Desktop Tools x64-x86_en-us.msi',
+        'Windows SDK Desktop Tools x86-x86_en-us.msi',
+        'Windows SDK for Windows Store Apps Headers-x86_en-us.msi',
+        'Windows SDK for Windows Store Apps Libs-x86_en-us.msi',
+        'Windows SDK for Windows Store Apps Tools-x86_en-us.msi',
+        'Windows SDK for Windows Store Apps Legacy Tools-x86_en-us.msi',
+        'Universal CRT Headers Libraries and Sources-x86_en-us.msi',
+        'UAPSDKAddOn-x86.msi'
+    ]
+    
+    for (const msiName of msiNames) {
+        const msiPayload = _.find(exePackage.payloads, payload => _.endsWith(payload.fileName, msiName))
+        
+        console.log(`Downloading ${msiName}`)
+        const { path: downloadDir } = await tmp.dir()
+        await downloadFile({
+            src: msiPayload.url,
+            dst: path.join(downloadDir, msiName)
+        })
+        
+        console.log(`Inspecting ${msiName}`)
+        const output = await runCommand('msiinfo', [
+            'export',
+            path.join(downloadDir, msiName),
+            'Media'
+        ])
+        
+        const medias = Papa.parse(output.stdout, { header: true })
+        const cabNames = _.map(_.filter(medias.data, media => {
+            return !_.startsWith(media.Cabinet, '#') && _.endsWith(media.Cabinet, '.cab')
+        }), 'Cabinet')
+        
+        for (const cabName of cabNames) {
+            const cabPayload = _.find(exePackage.payloads, payload => _.endsWith(payload.fileName, cabName))
+            
+            console.log(`Downloading ${cabName}`)
+            await downloadFile({
+                src: cabPayload.url,
+                dst: path.join(downloadDir, cabName)
+            })
+        }
+        
+        console.log(`Installing ${msiName}`)
+        await runCommand('msiexec', [
+            '/i', path.join(downloadDir, msiName),
+            '/qn',
+        ], {
+            env: {
+                ...process.env,
+                WINEDEBUG: '-all,+msiexec'
+            }
+        })
     }
-    console.log('Extraction path', extractPath)
+}
+
+async function run({ installDir }) {
+    
+    let installDirFullPath = null
+    if (installDir) {
+        installDirFullPath = path.resolve(installDir)
+        if (!await fs.pathExists(installDirFullPath)) {
+            throw new Error(`Installation directory ${installDirFullPath} does not exist`)
+        }
+    } else {
+        const { path: tmpDir } = await tmp.dir()
+        installDirFullPath = tmpDir
+    }
+    console.log('Installation directory', installDirFullPath)
     
     // Download manifest
     const manifestUrl = 'https://aka.ms/vs/15/release/channel'
     const manifest = await (await fetch(manifestUrl)).json()
     
     // Extract catalog url from manifest and download it
+    // Eg: https://download.visualstudio.microsoft.com/download/pr/82e3dcda-e8a0-44e4-8860-eb93a12d4e80/61c5d0ed852e311c8fd6a62627fcb326da6aa79028b40ae25ee062da3c33791b/VisualStudio.vsman
     const catalog = _.find(manifest.channelItems, item => {
         return item.type.toLowerCase() === 'manifest' && item.id === 'Microsoft.VisualStudio.Manifests.VisualStudio'
     })
     const catalogUrl = catalog.payloads[0].url
     const catalogJson = await (await fetch(catalogUrl)).json()
+    
+    // Install Win SDK separately, because the installer won't work
+    await installWindowsSDK({ catalogJson })
     
     // Only look for english or neutral packages
     const onlyEnglish = {
@@ -215,11 +309,22 @@ async function run() {
     
     // Install all packages
     for (const pkg of uniquePackages) {
-        await installPackage({ pkg, dst: extractPath })
+        await installPackage({ pkg, dst: installDirFullPath })
     }
 }
 
-run().catch(err => {
+yargs
+.usage('$0 --install-dir <path>')
+.option('install-dir', {
+    demand: true,
+    describe: 'Installation directory for VC Build Tools. Does not affect Windows SDK & other Frameworks.'
+})
+
+const args = yargs.argv
+
+run({
+    installDir: args.installDir
+}).catch(err => {
     console.error(err.stack)
     process.exit(1)
 })

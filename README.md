@@ -1,7 +1,7 @@
 Visual Studio Build Tools in Docker
 ===================================
 
-This is Visual Studio Build Tools running on Wine, running on Ubuntu, running on Docker.
+Visual Studio Build Tools 2017, running on Wine, running on Ubuntu, running on Docker.
 
 What's in it
 ------------
@@ -16,6 +16,7 @@ What's in it
    - Windows Store Apps Headers / Lib / Tools
    - CRT Header Libraries and Sources
  - Microsoft .NET 4.6.1
+ - Windows 2000 Command Prompt
  - Python 2.7
  
 Usage

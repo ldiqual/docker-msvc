@@ -19,7 +19,8 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
         gpg-agent \
         cabextract \
         patch \
-        vim
+        vim \
+        msitools
         
 # Install node
 RUN wget -O- https://deb.nodesource.com/setup_10.x | bash
@@ -74,46 +75,26 @@ WORKDIR /home/wineuser
 
 # Create a 32-bit wine prefix and install .NET
 RUN WINEARCH=win32 xvfb-run --auto-servernum wine wineboot --init \
-    && xvfb-run --auto-servernum winetricks -q dotnet461 cmd
+    && xvfb-run --auto-servernum winetricks -q dotnet461 cmd \
+    && wineserver -w
 
-# Install Build Tools
+# Install Build Tools & Windows SDK
 # Workaround for https://bugs.winehq.org/show_bug.cgi?id=47785 which prevents vs_BuildTools.exe from validating microsoft certificates
 RUN mkdir ${HOME}/vs-installer ${HOME}/.wine/drive_c/BuildTools
 COPY workarounds/vs-installer/. /home/wineuser/vs-installer/
 RUN cd ${HOME}/vs-installer \
     && npm install \
     && xvfb-run --auto-servernum \
-        node ./index.js ${HOME}/.wine/drive_c/BuildTools \
-    && rm -rf ${HOME}/deps
-
-# Download & extract windows SDK
-RUN wget https://go.microsoft.com/fwlink/p/?linkid=870809 -O ${HOME}/win10sdk.iso \
-    && mkdir ${HOME}/win10sdk \
-    && cd ${HOME}/win10sdk \
-    && 7z x ../win10sdk.iso \
-    && rm ../win10sdk.iso
-
-# Install Windows SDK
-RUN cd ${HOME}/win10sdk/Installers \
-    && winetricks -q win10 \
-    && wine msiexec /i "Windows SDK Desktop Headers x64-x86_en-us.msi" /qn \
-    && wine msiexec /i "Windows SDK Desktop Headers x86-x86_en-us.msi" /qn \
-    && wine msiexec /i "Windows SDK Desktop Libs x64-x86_en-us.msi" /qn \
-    && wine msiexec /i "Windows SDK Desktop Libs x86-x86_en-us.msi" /qn \
-    && wine msiexec /i "Windows SDK Desktop Tools x64-x86_en-us.msi" /qn \
-    && wine msiexec /i "Windows SDK Desktop Tools x86-x86_en-us.msi" /qn \
-    && wine msiexec /i "Windows SDK for Windows Store Apps Headers-x86_en-us.msi" /qn \
-    && wine msiexec /i "Windows SDK for Windows Store Apps Libs-x86_en-us.msi" /qn \
-    && wine msiexec /i "Windows SDK for Windows Store Apps Tools-x86_en-us.msi" /qn \
-    && wine msiexec /i "Windows SDK for Windows Store Apps Legacy Tools-x86_en-us.msi" /qn \
-    && wine msiexec /i "Universal CRT Headers Libraries and Sources-x86_en-us.msi" /qn \
-    && rm -rf ${HOME}/win10sdk \
+        node ./index.js --install-dir ${HOME}/.wine/drive_c/BuildTools \
+    && rm -rf ${HOME}/deps \
+    && wine reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v10.0" /v InstallationFolder /t REG_SZ /d "C:\Program Files\Windows Kits\10\\" /f \
     && wineserver -w
 
 # Install Python 2.7
 RUN wget https://www.python.org/ftp/python/2.7.16/python-2.7.16.msi -O ${HOME}/python-2.7.16.msi \
     && wine msiexec /i ${HOME}/python-2.7.16.msi /q \
-    && rm ${HOME}/python-2.7.16.msi
+    && rm ${HOME}/python-2.7.16.msi \
+    && wineserver -w
     
 # Patch VsDevCmd.bat to workaround https://bugs.winehq.org/show_bug.cgi?id=47791
 COPY workarounds/VsDevCmd.bat.patch /home/wineuser/VsDevCmd.bat.patch
