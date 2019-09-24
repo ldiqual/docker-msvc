@@ -34,7 +34,7 @@ Visual Studio build tools are located in `C:\BuildTools`. To launch a developer 
 
 ```
 $ cd ~/workdir
-$ wine cmd /k C:\BuildTools\VC\Auxiliary\Build\vcvars32.bat
+$ wine cmd /k "C:\BuildTools\VC\Auxiliary\Build\vcvars32.bat"
 ```
 
 This will set your developer prompt environment to compile 32-bit x86 code using native 32-bit tools. Alternatively, you can use:

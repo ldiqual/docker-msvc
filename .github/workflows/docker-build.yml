@@ -20,5 +20,5 @@ jobs:
     - run: docker build . -t ${DOCKER_REGISTRY_URL}/ldiqual/docker-msvc/docker:latest
       env:
         DOCKER_REGISTRY_URL: docker.pkg.github.com
-    - run: docker push -t ${DOCKER_REGISTRY_URL}/ldiqual/docker-msvc/docker:latest
+    - run: docker push ${DOCKER_REGISTRY_URL}/ldiqual/docker-msvc/docker:latest
     

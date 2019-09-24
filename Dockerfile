@@ -1,7 +1,7 @@
 FROM ubuntu:bionic
 
 ENV WINE_VERSION 4.16
-ENV WINEPATH C:\Python27\;C:\Python27\Scripts;C:\windows\system32;C:\windows;C:\windows\system32\wbem
+ENV WINEPATH "C:\\Python27\\;C:\\Python27\\Scripts"
 
 # Install package dependencies
 RUN export DEBIAN_FRONTEND="noninteractive" \
