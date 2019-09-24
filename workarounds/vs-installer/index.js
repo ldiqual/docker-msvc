@@ -12,15 +12,28 @@ const execa = require('execa')
 const Papa = require('papaparse')
 const yargs = require('yargs')
 
-async function downloadFile({ src, dst }) {
+async function downloadFile({ src, dst, isDryRun }) {
+    
     console.log(`Downloading ${src}`)
+    
+    if (isDryRun) {
+        return
+    }
+    
     const downloadPromise = download(src)
     downloadPromise.pipe(fs.createWriteStream(dst))
     await downloadPromise
 }
 
 async function runCommand(path, args, options) {
+    
     console.log(`Running ${path} ${args.join(' ')}`)
+    
+    options = options || {}
+    if (options.isDryRun) {
+        return
+    }
+    
     const promise = execa(path, args, options)
     promise.stdout.pipe(process.stdout)
     promise.stderr.pipe(process.stderr)
@@ -73,33 +86,41 @@ function findPackageAndDependencies({ json, id, chip }) {
     return [...packages, ...dependencies]
 }
 
-async function installVsix({ pkg, dst }) {
+async function installVsix({ pkg, dst, isDryRun }) {
+    
+    if (isDryRun) {
+        console.log(`Would download and install Vsix ${pkg.name}`)
+        return
+    }
     
     const { path: zipPath } = await tmp.file()
     const url = pkg.payloads[0].url
     
     console.log(`Downloading ${pkg.name}`)
-    await downloadFile({ src: url, dst: zipPath })
+    await downloadFile({ src: url, dst: zipPath, isDryRun })
     await Promise.delay(0.5)
     
     console.log(`Decompressing ${pkg.name}`)
-    await decompress(zipPath, dst, {
-        filter: file => _.startsWith(file.path, 'Contents/'),
-        map: file => {
-            file.path = file.path.split('Contents/')[1].replace('%20', ' ')
-            return file
-        }
-    })
+    if (!isDryRun) {
+        await decompress(zipPath, dst, {
+            filter: file => _.startsWith(file.path, 'Contents/'),
+            map: file => {
+                file.path = file.path.split('Contents/')[1].replace('%20', ' ')
+                return file
+            }
+        })
+    }
 }
 
-async function installMsi({ pkg, dst }) {
+async function installMsi({ pkg, dst, isDryRun }) {
     
     console.log(`Downloading ${pkg.name}`)
     const { path: downloadDir } = await tmp.dir()
     for (const payload of pkg.payloads) {
         await downloadFile({
             src: payload.url,
-            dst: path.join(downloadDir, payload.fileName)
+            dst: path.join(downloadDir, payload.fileName),
+            isDryRun
         })
     }
     
@@ -114,11 +135,12 @@ async function installMsi({ pkg, dst }) {
         env: {
             ...process.env,
             WINEDEBUG: '-all,+msiexec'
-        }
+        },
+        isDryRun
     })
 }
 
-async function installExe({ pkg, dst }) {
+async function installExe({ pkg, dst, isDryRun }) {
     
     const { path: downloadDir } = await tmp.dir()
     
@@ -126,7 +148,8 @@ async function installExe({ pkg, dst }) {
     const payload = pkg.payloads[0]
     await downloadFile({
         src: payload.url,
-        dst: path.join(downloadDir, payload.fileName)
+        dst: path.join(downloadDir, payload.fileName),
+        isDryRun
     })
     
     const params = {
@@ -146,23 +169,24 @@ async function installExe({ pkg, dst }) {
         ...installParams.split(' ')
     ], {
         shell: true,
+        isDryRun
     })
 }
 
-async function installPackage({ pkg, dst }) {
+async function installPackage({ pkg, dst, isDryRun }) {
     switch (pkg.type.toLowerCase()) {
         case 'vsix':
-            return installVsix({ pkg, dst })
+            return installVsix({ pkg, dst, isDryRun })
         case 'exe':
-            return installExe({ pkg, dst })
+            return installExe({ pkg, dst, isDryRun })
         case 'msi':
-            return installMsi({ pkg, dst })
+            return installMsi({ pkg, dst, isDryRun })
         default:
             console.log(`Ignoring installation steps for package type ${pkg.type}`)
     }
 }
 
-async function installWindowsSDK({ catalogJson }) {
+async function installWindowsSDK({ catalogJson, isDryRun }) {
     
     console.log('Downloading & Installing Windows SDK')
     
@@ -197,7 +221,6 @@ async function installWindowsSDK({ catalogJson }) {
         'Windows SDK for Windows Store Apps Tools-x86_en-us.msi',
         'Windows SDK for Windows Store Apps Legacy Tools-x86_en-us.msi',
         'Universal CRT Headers Libraries and Sources-x86_en-us.msi',
-        'UAPSDKAddOn-x86.msi'
     ]
     
     for (const msiName of msiNames) {
@@ -207,29 +230,33 @@ async function installWindowsSDK({ catalogJson }) {
         const { path: downloadDir } = await tmp.dir()
         await downloadFile({
             src: msiPayload.url,
-            dst: path.join(downloadDir, msiName)
+            dst: path.join(downloadDir, msiName),
+            isDryRun
         })
         
         console.log(`Inspecting ${msiName}`)
-        const output = await runCommand('msiinfo', [
-            'export',
-            path.join(downloadDir, msiName),
-            'Media'
-        ])
-        
-        const medias = Papa.parse(output.stdout, { header: true })
-        const cabNames = _.map(_.filter(medias.data, media => {
-            return !_.startsWith(media.Cabinet, '#') && _.endsWith(media.Cabinet, '.cab')
-        }), 'Cabinet')
-        
-        for (const cabName of cabNames) {
-            const cabPayload = _.find(exePackage.payloads, payload => _.endsWith(payload.fileName, cabName))
+        if (!isDryRun) {
+            const output = await runCommand('msiinfo', [
+                'export',
+                path.join(downloadDir, msiName),
+                'Media'
+            ])
             
-            console.log(`Downloading ${cabName}`)
-            await downloadFile({
-                src: cabPayload.url,
-                dst: path.join(downloadDir, cabName)
-            })
+            const medias = Papa.parse(output.stdout, { header: true })
+            const cabNames = _.map(_.filter(medias.data, media => {
+                return !_.startsWith(media.Cabinet, '#') && _.endsWith(media.Cabinet, '.cab')
+            }), 'Cabinet')
+            
+            for (const cabName of cabNames) {
+                const cabPayload = _.find(exePackage.payloads, payload => _.endsWith(payload.fileName, cabName))
+                
+                console.log(`Downloading ${cabName}`)
+                await downloadFile({
+                    src: cabPayload.url,
+                    dst: path.join(downloadDir, cabName),
+                    isDryRun
+                })
+            }
         }
         
         console.log(`Installing ${msiName}`)
@@ -240,12 +267,17 @@ async function installWindowsSDK({ catalogJson }) {
             env: {
                 ...process.env,
                 WINEDEBUG: '-all,+msiexec'
-            }
+            },
+            isDryRun
         })
     }
 }
 
-async function run({ installDir }) {
+async function run({ installDir, isDryRun }) {
+    
+    if (isDryRun) {
+        console.log('Running installer in dry-run mode')
+    }
     
     let installDirFullPath = null
     if (installDir) {
@@ -272,7 +304,7 @@ async function run({ installDir }) {
     const catalogJson = await (await fetch(catalogUrl)).json()
     
     // Install Win SDK separately, because the installer won't work
-    await installWindowsSDK({ catalogJson })
+    await installWindowsSDK({ catalogJson, isDryRun })
     
     // Only look for english or neutral packages
     const onlyEnglish = {
@@ -294,8 +326,18 @@ async function run({ installDir }) {
         id: 'Microsoft.VisualStudio.Product.BuildTools'
     })
     
+    // Support for UWP builds
+    const uwpPackages = findPackageAndDependencies({
+        json: onlyEnglish,
+        id: 'Microsoft.VisualStudio.Workload.UniversalBuildTools'
+    })
+    
     // Gather all packages and generate a unique name
-    const allPackages = _.map([...vcToolsPackages, ...buildToolsPackages], pkg => {
+    const allPackages = _.map([
+        ...vcToolsPackages,
+        ...buildToolsPackages,
+        ...uwpPackages
+    ], pkg => {
         return {
             ...pkg,
             name: `${pkg.id},${pkg.chip || 'neutral'},${pkg.version}`
@@ -309,21 +351,30 @@ async function run({ installDir }) {
     
     // Install all packages
     for (const pkg of uniquePackages) {
-        await installPackage({ pkg, dst: installDirFullPath })
+        await installPackage({ pkg, dst: installDirFullPath, isDryRun })
     }
 }
 
 yargs
 .usage('$0 --install-dir <path>')
 .option('install-dir', {
-    demand: true,
-    describe: 'Installation directory for VC Build Tools. Does not affect Windows SDK & other Frameworks.'
+    describe: 'Installation directory for VC Build Tools. Does not affect Windows SDK & other Frameworks.',
 })
+.option('dry-run', {
+    describe: 'Run the installer without downloading or installing components',
+    type: 'boolean'
+})
+.conflicts('dry-run', 'install-dir')
 
 const args = yargs.argv
 
+if (!args.dryRun && !args.installDir) {
+    throw new Error('--install-dir must be provided during real runs')
+}
+
 run({
-    installDir: args.installDir
+    installDir: args.installDir,
+    isDryRun: args.dryRun || false
 }).catch(err => {
     console.error(err.stack)
     process.exit(1)
