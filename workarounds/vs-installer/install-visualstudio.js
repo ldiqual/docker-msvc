@@ -76,7 +76,11 @@ async function installVsix({ pkg, payloadsDir, dst, isDryRun }) {
         await decompress(zipPath, dst, {
             filter: file => _.startsWith(file.path, 'Contents/'),
             map: file => {
-                file.path = file.path.split('Contents/')[1].replace('%20', ' ')
+                file.path = file.path
+                .split('Contents/')[1]
+                .replace('%20', ' ')
+                .replace('Hostx86', 'HostX86') // Workaround for case-sensitive installs
+                .replace('Hostx64', 'HostX64')
                 return file
             }
         })

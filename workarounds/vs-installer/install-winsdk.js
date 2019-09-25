@@ -125,7 +125,8 @@ async function run({ installDir, isDryRun }) {
                     size: Number(payload.$.FileSize)
                 }
             })
-            const msiProperties = _.mapValues(_.keyBy(pkg.MsiProperty, '$.Id'), '$.Value')
+            
+            const msiProperties = _.mapValues(_.keyBy(pkgInBurnManifest.MsiProperty, '$.Id'), '$.Value')
             return {
                 id: pkg.id,
                 msiProperties,
