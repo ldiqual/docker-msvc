@@ -32,6 +32,11 @@ function findPackageAndDependencies({ json, id, chip }) {
         return true
     })
     
+    if (packages.length === 0) {
+        console.log(`Package ${id} either does not exist or doesn't match the supported architectures`)
+        return []
+    }
+    
     const ignoredDependencies = [
         'Microsoft.Net.4.6.1.FullRedist.Threshold',
         'Microsoft.Net.4.6.1.FullRedist.NonThreshold',
@@ -177,7 +182,7 @@ async function installPackages({ packages, dst, isDryRun }) {
     }    
 }
 
-async function run({ installDir, isDryRun }) {
+async function run({ installDir, isDryRun, basePackages, extraPackages }) {
     
     if (isDryRun) {
         console.log('Running installer in dry-run mode')
@@ -215,30 +220,22 @@ async function run({ installDir, isDryRun }) {
         })
     }
     
-    // Add VCTools
-    const vcToolsPackages = findPackageAndDependencies({
-        json: onlyEnglish,
-        id: 'Microsoft.VisualStudio.Workload.VCTools'
-    })
+    const rootPackagesIds = [
+        ...basePackages,
+        ...extraPackages
+    ]
     
-    // Add BuildTools
-    const buildToolsPackages = findPackageAndDependencies({
-        json: onlyEnglish,
-        id: 'Microsoft.VisualStudio.Product.BuildTools'
-    })
+    console.log('Root packages', rootPackagesIds)
     
-    // Support for UWP builds
-    const uwpPackages = findPackageAndDependencies({
-        json: onlyEnglish,
-        id: 'Microsoft.VisualStudio.Workload.UniversalBuildTools'
-    })
+    const allPackages = _.flatten(_.map(rootPackagesIds, pkg => {
+        return findPackageAndDependencies({
+            json: onlyEnglish,
+            id: pkg
+        })
+    }))
     
     // Gather all packages and generate a unique name
-    const allPackages = _.map([
-        ...vcToolsPackages,
-        ...buildToolsPackages,
-        ...uwpPackages
-    ], pkg => {
+    const allPackagesWithName = _.map(allPackages, pkg => {
         return {
             ...pkg,
             name: `${pkg.id},${pkg.chip || 'neutral'},${pkg.version}`
@@ -246,7 +243,7 @@ async function run({ installDir, isDryRun }) {
     })
     
     // Remove duplicates
-    const uniquePackages = _.uniqBy(allPackages, 'name')
+    const uniquePackages = _.uniqBy(allPackagesWithName, 'name')
     
     console.log('Packages to install', _.map(uniquePackages, 'name'))
     
@@ -258,10 +255,19 @@ async function run({ installDir, isDryRun }) {
     })
 }
 
+const basePackages = [
+    'Microsoft.VisualStudio.Workload.VCTools',
+    'Microsoft.VisualStudio.Product.BuildTools'
+]
+
 yargs
-.usage('$0 --install-dir <path>')
+.usage('$0 --install-dir <path> [--extra-packages <pkg1> <pkg2>...]')
 .option('install-dir', {
     describe: 'Installation directory for VC Build Tools',
+})
+.option('extra-packages', {
+    describe: `Extra packages to download and install. Default packages: ${basePackages.join(', ')}`,
+    type: 'array'
 })
 .option('dry-run', {
     describe: 'Run the installer without downloading or installing components',
@@ -277,7 +283,9 @@ if (!args.dryRun && !args.installDir) {
 
 run({
     installDir: args.installDir,
-    isDryRun: args.dryRun || false
+    isDryRun: args.dryRun || false,
+    basePackages,
+    extraPackages: args.extraPackages || []
 }).catch(err => {
     console.error(err.stack)
     process.exit(1)

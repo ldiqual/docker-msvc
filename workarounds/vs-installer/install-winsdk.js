@@ -85,7 +85,8 @@ async function installWindowsSDK({ catalogJson, isDryRun }) {
             const cabPayload = _.find(exePackage.payloads, payload => _.endsWith(payload.fileName, cabName))
             return {
                 src: cabPayload.url,
-                dst: path.join(downloadDir, cabName)
+                dst: path.join(downloadDir, cabName),
+                size: cabPayload.size,
             }
         })
     }))

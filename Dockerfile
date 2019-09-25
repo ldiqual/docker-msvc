@@ -99,7 +99,9 @@ RUN cd ${HOME}/vs-installer \
 COPY workarounds/vs-installer/install-visualstudio.js /home/wineuser/vs-installer/
 RUN mkdir ${HOME}/.wine/drive_c/BuildTools \
     && cd ${HOME}/vs-installer \
-    && xvfb-run --auto-servernum node ./install-visualstudio.js --installDir ${HOME}/.wine/drive_c/BuildTools\
+    && xvfb-run --auto-servernum node ./install-visualstudio.js \
+        --installDir ${HOME}/.wine/drive_c/BuildTools \
+        --extra-packages Microsoft.VisualStudio.Workload.UniversalBuildTools \
     && wineserver -w
     
 RUN rm -rf ${HOME}/vs-installer
