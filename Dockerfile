@@ -79,12 +79,16 @@ RUN WINEARCH=win32 xvfb-run --auto-servernum wine wineboot --init \
     && xvfb-run --auto-servernum winetricks -q dotnet461 cmd \
     && wineserver -w
 
-# Install Build Tools & Windows SDK
-RUN mkdir ${HOME}/vs-installer ${HOME}/.wine/drive_c/BuildTools
-COPY workarounds/vs-installer/. /home/wineuser/vs-installer/
+# Prepare node environment
+# Only package*.json and libs are copied so that build steps can be re-run without downloading everything again.
+RUN mkdir ${HOME}/vs-installer
+COPY workarounds/vs-installer/package*.json /home/wineuser/vs-installer/
+RUN mkdir ${HOME}/vs-installer/lib
+COPY workarounds/vs-installer/lib/* /home/wineuser/vs-installer/lib/
 RUN cd ${HOME}/vs-installer && npm install
 
 # Install Windows SDK
+COPY workarounds/vs-installer/install-winsdk.js /home/wineuser/vs-installer/
 RUN cd ${HOME}/vs-installer \
     && xvfb-run --auto-servernum node ./install-winsdk.js \
     && wine reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v10.0" /v InstallationFolder /t REG_SZ /d "C:\Program Files\Windows Kits\10\\" /f \
@@ -92,11 +96,13 @@ RUN cd ${HOME}/vs-installer \
 
 # Install Build Tools
 # Workaround for https://bugs.winehq.org/show_bug.cgi?id=47785 which prevents vs_BuildTools.exe from validating microsoft certificates
-RUN cd ${HOME}/vs-installer \
+COPY workarounds/vs-installer/install-visualstudio.js /home/wineuser/vs-installer/
+RUN mkdir ${HOME}/.wine/drive_c/BuildTools \
+    && cd ${HOME}/vs-installer \
     && xvfb-run --auto-servernum node ./install-visualstudio.js --installDir ${HOME}/.wine/drive_c/BuildTools\
     && wineserver -w
     
-RUN rm -rf ${HOME}/deps
+RUN rm -rf ${HOME}/vs-installer
 
 # Install Python 2.7
 RUN wget https://www.python.org/ftp/python/2.7.16/python-2.7.16.msi -O ${HOME}/python-2.7.16.msi \

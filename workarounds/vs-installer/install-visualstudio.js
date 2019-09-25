@@ -60,11 +60,11 @@ function findPackageAndDependencies({ json, id, chip }) {
 async function installVsix({ pkg, payloadsDir, dst, isDryRun }) {
     
     if (isDryRun) {
-        console.log(`Would download and install Vsix ${pkg.name}`)
+        console.log(`Would install Vsix ${pkg.name}`)
         return
     }
     
-    const zipPath = path.join(payloadsDir, pkg.payloads[0].url)
+    const zipPath = path.join(payloadsDir, pkg.payloads[0].fileName)
     
     console.log(`Decompressing ${pkg.name}`)
     if (!isDryRun) {
@@ -147,7 +147,8 @@ async function installPackages({ packages, dst, isDryRun }) {
         return _.map(pkg.payloads || [], payload => {
             return {
                 src: payload.url,
-                dst: path.join(downloadDir, pkg.name, path.basename(payload.fileName))
+                dst: path.join(downloadDir, pkg.name, path.basename(payload.fileName)),
+                size: payload.size,
             }
         })
     }))
@@ -157,17 +158,21 @@ async function installPackages({ packages, dst, isDryRun }) {
         isDryRun
     })
     
-    for (const pkg in packages) {
+    for (const pkg of packages) {
         const payloadsDir = path.join(downloadDir, pkg.name)
         switch (pkg.type.toLowerCase()) {
             case 'vsix':
-                return installVsix({ pkg, payloadsDir, dst, isDryRun })
+                await installVsix({ pkg, payloadsDir, dst, isDryRun })
+                break
             case 'exe':
-                return installExe({ pkg, payloadsDir, dst, isDryRun })
+                await installExe({ pkg, payloadsDir, dst, isDryRun })
+                break
             case 'msi':
-                return installMsi({ pkg, payloadsDir, dst, isDryRun })
+                await installMsi({ pkg, payloadsDir, dst, isDryRun })
+                break
             default:
                 console.log(`Ignoring installation steps for package type ${pkg.type}`)
+                break
         }
     }    
 }

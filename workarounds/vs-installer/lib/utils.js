@@ -1,10 +1,12 @@
 'use strict'
 
+const _ = require('lodash')
 const execa = require('execa')
 const download = require('download')
 const fs = require('fs-extra')
 const path = require('path')
 const tmp = require('tmp-promise')
+const prettyBytes = require('pretty-bytes')
 
 async function downloadFile({ src, dst, isDryRun }) {
     
@@ -22,7 +24,9 @@ async function downloadFile({ src, dst, isDryRun }) {
 // files is an array of objects containing {src, dst}
 async function downloadFiles({ files, isDryRun }) {
     
-    console.log(`Downloading ${files.length} files`)
+    const totalSize = _.sumBy(files, 'size')
+    const prettyTotalSize = prettyBytes(totalSize)
+    console.log(`Downloading ${files.length} files with a total size of ${prettyTotalSize}`)
     
     const { path: fileListPath } = await tmp.file()
     

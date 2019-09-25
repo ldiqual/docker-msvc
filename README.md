@@ -8,9 +8,10 @@ What's in it
 
  - Ubuntu 18.04
  - Wine 4.16 and winetricks
- - Visual Studio 2017 with the following components:
+ - Visual Studio 2017 with the following components and their required dependencies:
    - `Microsoft.VisualStudio.Product.BuildTools`: Visual Studio Build Tools
    - `Microsoft.VisualStudio.Workload.VCTools`: Visual Studio C++ Build Tools
+   - `Microsoft.VisualStudio.Workload.UniversalBuildTools`: Universal Windows Platform build tools
  - Windows 10 SDK with the following components:
    - Desktop Headers / Lib / Tools
    - Windows Store Apps Headers / Lib / Tools

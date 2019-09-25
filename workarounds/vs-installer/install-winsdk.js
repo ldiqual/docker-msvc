@@ -52,7 +52,8 @@ async function installWindowsSDK({ catalogJson, isDryRun }) {
         const msiPayload = _.find(exePackage.payloads, payload => _.endsWith(payload.fileName, msiName))
         return {
             src: msiPayload.url,
-            dst: path.join(downloadDir, msiName)
+            dst: path.join(downloadDir, msiName),
+            size: msiPayload.size,
         }
     })
     
