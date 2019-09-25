@@ -56,6 +56,7 @@ Why?
 
 I've been trying to cross-compile NodeJS from my mac and only MSVC is supported.
 With no access to a Windows machine, I figured that docker + wine could do the job.
+This image is now fully able to build NodeJS from x86 to x86.
 
 Workarounds
 -----------

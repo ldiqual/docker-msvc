@@ -45,10 +45,6 @@ RUN groupadd -g 1010 wineuser \
     && useradd --shell /bin/bash --uid 1010 --gid 1010 --create-home --home-dir /home/wineuser wineuser \
     && chown -R wineuser:wineuser /home/wineuser
 
-# Install entrypoint
-COPY entrypoint.sh /usr/bin/entrypoint
-RUN chmod +x /usr/bin/entrypoint
-
 # Install winetricks
 ADD --chown=wineuser:wineuser https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks /usr/bin/winetricks
 RUN chmod +x /usr/bin/winetricks
@@ -126,4 +122,3 @@ RUN wget http://www.malsmith.net/download/?obj=which/latest-stable/win32-unicode
     && ln -s ${HOME}/.wine/drive_c/windows/system32/which.exe ${HOME}/.wine/drive_c/windows/system32/where.exe
 
 ENTRYPOINT ["bash"]
-CMD ["bash"]
