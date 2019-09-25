@@ -30,7 +30,7 @@ function isSupportedInstallCondition(installCondition) {
     return !_.includes(['amd64', 'arm'], matches[1])
 }
 
-async function run({ installDir, isDryRun }) {
+async function run({ installDir, isDryRun, listOptions }) {
     
     if (isDryRun) {
         console.log('Running installer in dry-run mode')
@@ -82,6 +82,15 @@ async function run({ installDir, isDryRun }) {
     console.log('Download URL', downloadUrl)
     
     const allOptions = uxManifest.UserExperienceManifest.Options[0].Option
+    
+    if (listOptions) {
+        
+        console.log(allOptions.map(opt => {
+            return opt.$.Id
+        }))
+        
+        return
+    }
     
     const baseOptionIds = [
         'OptionId.SigningTools',
@@ -197,10 +206,15 @@ yargs
     describe: 'Run the installer without downloading or installing components',
     type: 'boolean'
 })
+.option('list-options', {
+    describe: 'Lists all options of the Windows SDK Installer',
+    type: 'boolean'
+})
 
 const args = yargs.argv
 
 run({
+    listOptions: args.listOptions || false,
     isDryRun: args.dryRun || false
 }).catch(err => {
     console.error(err.stack)

@@ -188,7 +188,7 @@ async function installPackages({ packages, dst, isDryRun }) {
     }    
 }
 
-async function run({ installDir, isDryRun, basePackages, extraPackages }) {
+async function run({ installDir, isDryRun, listPackages, basePackages, extraPackages }) {
     
     if (isDryRun) {
         console.log('Running installer in dry-run mode')
@@ -217,6 +217,13 @@ async function run({ installDir, isDryRun, basePackages, extraPackages }) {
     })
     const catalogUrl = catalog.payloads[0].url
     const catalogJson = await (await fetch(catalogUrl)).json()
+    
+    if (listPackages) {
+        for (const pkg of catalogJson.packages) {
+            console.log(pkg.id)
+        }
+        return
+    }
     
     // Only look for english or neutral packages
     const onlyEnglish = {
@@ -275,6 +282,10 @@ yargs
     describe: `Extra packages to download and install. Default packages: ${basePackages.join(', ')}`,
     type: 'array'
 })
+.option('list-packages', {
+    describe: 'Lists all available packages from the Visual Studio installer',
+    type: 'boolean'
+})
 .option('dry-run', {
     describe: 'Run the installer without downloading or installing components',
     type: 'boolean'
@@ -283,13 +294,10 @@ yargs
 
 const args = yargs.argv
 
-if (!args.dryRun && !args.installDir) {
-    throw new Error('--install-dir must be provided during real runs')
-}
-
 run({
     installDir: args.installDir,
     isDryRun: args.dryRun || false,
+    listPackages: args.listPackages || false,
     basePackages,
     extraPackages: args.extraPackages || []
 }).catch(err => {

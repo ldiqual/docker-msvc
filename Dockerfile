@@ -21,11 +21,13 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
         patch \
         vim \
         msitools \
-        aria2
+        aria2 \
+    && rm -rf /var/lib/apt/lists/* 
         
 # Install node
-RUN wget -O- https://deb.nodesource.com/setup_10.x | bash
-RUN apt-get install -y nodejs
+RUN wget -O- https://deb.nodesource.com/setup_10.x | bash \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install wine
 RUN wget https://dl.winehq.org/wine-builds/winehq.key \
@@ -34,8 +36,9 @@ RUN wget https://dl.winehq.org/wine-builds/winehq.key \
     && add-apt-repository ppa:cybermax-dexter/sdl2-backport \
     && dpkg --add-architecture i386 \
     && apt-get update \
-    && apt-get install -y --install-recommends winehq-devel=${WINE_VERSION}~bionic \
-    && rm winehq.key
+    && apt-get install -y --no-install-recommends winehq-devel=${WINE_VERSION}~bionic \
+    && rm winehq.key \
+    && rm -rf /var/lib/apt/lists/* 
 
 # Create wineuser
 RUN groupadd -g 1010 wineuser \
