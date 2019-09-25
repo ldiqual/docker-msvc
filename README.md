@@ -13,9 +13,11 @@ What's in it
    - `Microsoft.VisualStudio.Workload.VCTools`: Visual Studio C++ Build Tools
    - `Microsoft.VisualStudio.Workload.UniversalBuildTools`: Universal Windows Platform build tools
  - Windows 10 SDK with the following components:
-   - Desktop Headers / Lib / Tools
-   - Windows Store Apps Headers / Lib / Tools
-   - CRT Header Libraries and Sources
+   - OptionId.SigningTools
+   - OptionId.UWPManaged
+   - OptionId.UWPCPP
+   - OptionId.DesktopCPPx86
+   - OptionId.DesktopCPPx64
  - Microsoft .NET 4.6.1
  - Windows 2000 Command Prompt
  - Python 2.7

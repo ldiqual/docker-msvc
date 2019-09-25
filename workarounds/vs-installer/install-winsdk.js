@@ -3,105 +3,181 @@
 const _ = require('lodash')
 const path = require('path')
 const tmp = require('tmp-promise')
-const fetch = require('node-fetch')
-const Papa = require('papaparse')
 const yargs = require('yargs')
 const Promise = require('bluebird')
+const fs = require('fs-extra')
+const xml2js = require('xml2js')
+const readChunk = require('read-chunk')
+const globby = require('globby')
+const rp = require('request-promise')
 
 const utils = require('./lib/utils')
 
-async function installWindowsSDK({ catalogJson, isDryRun }) {
+function isSupportedInstallCondition(installCondition) {
+        
+    if (!installCondition) {
+        return true
+    }
     
-    console.log('Downloading & Installing Windows SDK')
+    const archRegex = /Arch = "(.*)"/
+    const matches = installCondition.match(archRegex)
+    if (!matches) {
+        return true
+    }
     
-    const toolsPackage = _.find(catalogJson.packages, pkg => pkg.id === 'Microsoft.VisualStudio.Workload.VCTools')
-    const winSdkDependency = _.first(_.keys(
-        _.pickBy(toolsPackage.dependencies, (depObject, depId) => {
-            if (!_.isObject(depObject)) {
-                return false
-            }
-            return depObject.type.toLowerCase() === 'recommended'
-                && _.startsWith(depId, 'Microsoft.VisualStudio.Component.Windows10SDK')
-        })
-    ))
-    const winSdkVersion = _.last(winSdkDependency.split('.'))
-    console.log(`Windows SDK version ${winSdkVersion}`)
+    return !_.includes(['amd64', 'arm'], matches[1])
+}
+
+async function run({ installDir, isDryRun }) {
     
-    const exePackage = _.find(catalogJson.packages, pkg => pkg.id === `Win10SDK_10.0.${winSdkVersion}`)
+    if (isDryRun) {
+        console.log('Running installer in dry-run mode')
+    }
     
-    // To get a list of available Windows SDK components, run:
-    // $ cat channel.vsman.json | jq '.packages[] | select(.id =="Win10SDK_10.0.17763") | .payloads[].fileName' | grep -i msi
-    const msiNames = [
-        'Windows SDK Modern Versioned Developer Tools-x86_en-us.msi',
-        'Windows SDK Desktop Headers x64-x86_en-us.msi',
-        'Windows SDK Desktop Headers x86-x86_en-us.msi',
-        'Windows SDK Desktop Libs x64-x86_en-us.msi',
-        'Windows SDK Desktop Libs x86-x86_en-us.msi',
-        'Windows SDK Desktop Tools x64-x86_en-us.msi',
-        'Windows SDK Desktop Tools x86-x86_en-us.msi',
-        'Windows SDK for Windows Store Apps Headers-x86_en-us.msi',
-        'Windows SDK for Windows Store Apps Libs-x86_en-us.msi',
-        'Windows SDK for Windows Store Apps Tools-x86_en-us.msi',
-        'Windows SDK for Windows Store Apps Legacy Tools-x86_en-us.msi',
-        'Universal CRT Headers Libraries and Sources-x86_en-us.msi',
+    const { path: downloadDir } = await tmp.dir({ unsafeCleanup: true })
+    
+    // Download Win SDK Installer
+    const installerPath = path.join(downloadDir, 'winsdk-installer.exe')
+    await utils.downloadFile({
+        src: 'https://go.microsoft.com/fwlink/p/?linkid=2083338&clcid=0x409',
+        dst: installerPath
+    })
+    
+    // Extract installer to inspect its xml files
+    await utils.runCommand('7z', [
+        'x',
+        `-o${downloadDir}`,
+        installerPath
+    ])
+    
+    const burnManifestPath = path.join(downloadDir, '0')
+    const burnManifestString = await fs.readFile(burnManifestPath, 'utf8')
+    const burnManifest = await xml2js.parseStringPromise(burnManifestString)
+    
+    const remainingFilesPaths = await globby('u*', {
+        cwd: downloadDir,
+        absolute: true
+    })
+    
+    const uxManifestPath = _.first(await Promise.filter(remainingFilesPaths, async path => {
+        const buffer = readChunk.sync(path, 0, 23)
+        return buffer.toString() === '<UserExperienceManifest'
+    }))
+    
+    const uxManifestString = await fs.readFile(uxManifestPath, 'utf8')
+    const uxManifest = await xml2js.parseStringPromise(uxManifestString)
+    
+    // http://go.microsoft.com/fwlink/?prd=11966&pver=1.0&plcid=0x409&clcid=0x409&ar=Windows10&sar=SDK&o1=10.0.18362.1
+    // Resolves to https://download.microsoft.com/download/4/2/2/42245968-6A79-4DA7-A5FB-08C0AD0AE661/windowssdk/
+    const rootDownloadUrl = uxManifest.UserExperienceManifest.Settings[0].SourceResolution[0].DownloadRoot[0]
+    const urlResolveResponse = await rp({
+        url: rootDownloadUrl,
+        followRedirect: false,
+        resolveWithFullResponse: true,
+        simple: false,
+    })
+    const downloadUrl = urlResolveResponse.headers.location
+    console.log('Download URL', downloadUrl)
+    
+    const allOptions = uxManifest.UserExperienceManifest.Options[0].Option
+    
+    const baseOptionIds = [
+        'OptionId.SigningTools',
+        'OptionId.UWPManaged',
+        'OptionId.UWPCPP',
+        'OptionId.DesktopCPPx86',
+        'OptionId.DesktopCPPx64'
     ]
     
-    // Generate a list of MSI files to download
-    const { path: downloadDir } = await tmp.dir({ unsafeCleanup: true })
-    const msiFiles = _.map(msiNames, msiName => {
-        const msiPayload = _.find(exePackage.payloads, payload => _.endsWith(payload.fileName, msiName))
-        return {
-            src: msiPayload.url,
-            dst: path.join(downloadDir, msiName),
-            size: msiPayload.size,
-        }
-    })
-    
-    // Download MSI files
-    await utils.downloadFiles({
-        files: msiFiles,
-        isDryRun
-    })
-    
-    // Inspect each MSI file and generate a list of .cab files to download
-    const cabFiles = _.flatten(await Promise.map(msiNames, async msiName => {
-        
-        if (isDryRun) {
-            return []
-        }
-                
-        const output = await utils.runCommand('msiinfo', [
-            'export',
-            path.join(downloadDir, msiName),
-            'Media'
-        ])
-        
-        const medias = Papa.parse(output.stdout, { header: true })
-        const cabNames = _.map(_.filter(medias.data, media => {
-            return !_.startsWith(media.Cabinet, '#') && _.endsWith(media.Cabinet, '.cab')
-        }), 'Cabinet')
-        
-        return _.map(cabNames, cabName => {
-            const cabPayload = _.find(exePackage.payloads, payload => _.endsWith(payload.fileName, cabName))
+    // Extract packages and their payload from the uxManifest and the burnManifest
+    const allPackages = _.flatten(_.map(baseOptionIds, optionId => {
+        const optionObj = _.find(allOptions, opt => opt.$.Id === optionId)
+        const packages = _.map(optionObj.Packages[0].Package, pkg => {
             return {
-                src: cabPayload.url,
-                dst: path.join(downloadDir, cabName),
-                size: cabPayload.size,
+                id: pkg.$.Id,
+                installCondition: pkg.$.InstallCondition
+            }
+        })
+        
+        const filteredPackageIds = _.filter(packages, pkg => {
+            const isSupported = isSupportedInstallCondition(pkg.installCondition)
+            
+            if (!isSupported) {
+                console.log(`Ignoring msi package ${pkg.id} because it doesn't have a supported install condition`)
+            }
+            
+            return isSupported
+        })
+        
+        return _.compact(_.map(filteredPackageIds, pkg => {
+            const pkgInBurnManifest = _.find(burnManifest.BurnManifest.Chain[0].MsiPackage, pkgInBurnManifest => pkgInBurnManifest.$.Id === pkg.id)
+            
+            if (!isSupportedInstallCondition(pkgInBurnManifest.$.InstallCondition)) {
+                console.log(`Ignoring msi package ${pkgInBurnManifest.$.Id} because it doesn't have a supported install condition`)
+                return null
+            }
+            
+            const payloads = _.map(pkgInBurnManifest.PayloadRef, payloadRef => {
+                const payload = _.find(burnManifest.BurnManifest.Payload, payload => payload.$.Id === payloadRef.$.Id)                
+                return {
+                    urlPath: payload.$.FilePath,
+                    fileName: _.last(payload.$.FilePath.split('\\')),
+                    size: Number(payload.$.FileSize)
+                }
+            })
+            const msiProperties = _.mapValues(_.keyBy(pkg.MsiProperty, '$.Id'), '$.Value')
+            return {
+                id: pkg.id,
+                msiProperties,
+                payloads
+            }
+        }))
+    }))
+    
+    console.log('Packages to install', allPackages.map(pkg => pkg.id))
+    
+    // Generate payload file list
+    const files = _.flatten(_.map(allPackages, pkg => {
+        return _.map(pkg.payloads, payload => {
+            return {
+                src: `${downloadUrl}${payload.urlPath}`,
+                dst: path.join(downloadDir, payload.fileName),
+                size: payload.size
             }
         })
     }))
     
-    // Download CAB files
+    // Download payloads
     await utils.downloadFiles({
-        files: cabFiles,
+        files,
         isDryRun
     })
     
-    // Install MSI files now that their associated CAB files are downloaded
-    for (const msiName of msiNames) {
-        console.log(`Installing ${msiName}`)
+    for (const pkg of allPackages) {
+        
+        const msiPayload = _.find(pkg.payloads, payload => _.endsWith(payload.fileName, 'msi'))
+        
+        const replacements = {
+            '[LogFile]': `C:\\Users\\wineuser\\Temp\\${pkg.name}.log`,
+            '[Payload]': msiPayload.fileName,
+            '[CEIPConsent]': '',
+            '[SharedInstallDir]': 'C:\\Program Files',
+            '[UserLocale]': 'en-us',
+            '[KITSROOT]': 'C:\\Program Files\\Windows Kits\\10'
+        }
+        const installParams = _.mapValues(pkg.msiProperties || {}, (paramValue, paramKey) => {
+            return replacements[paramValue] || paramValue
+        })
+        
+        console.log(`Installing ${pkg.id}`)
+        
+        if (isDryRun) {
+            continue
+        }
+        
         await utils.runCommand('msiexec', [
-            '/i', path.join(downloadDir, msiName),
+            '/i', path.join(downloadDir, msiPayload.fileName),
+            ..._.map(installParams, (value, key) => `${key}=${value}`),
             '/qn',
         ], {
             env: {
@@ -111,28 +187,6 @@ async function installWindowsSDK({ catalogJson, isDryRun }) {
             isDryRun
         })
     }
-}
-
-async function run({ installDir, isDryRun }) {
-    
-    if (isDryRun) {
-        console.log('Running installer in dry-run mode')
-    }
-    
-    // Download manifest
-    const manifestUrl = 'https://aka.ms/vs/15/release/channel'
-    const manifest = await (await fetch(manifestUrl)).json()
-    
-    // Extract catalog url from manifest and download it
-    // Eg: https://download.visualstudio.microsoft.com/download/pr/82e3dcda-e8a0-44e4-8860-eb93a12d4e80/61c5d0ed852e311c8fd6a62627fcb326da6aa79028b40ae25ee062da3c33791b/VisualStudio.vsman
-    const catalog = _.find(manifest.channelItems, item => {
-        return item.type.toLowerCase() === 'manifest' && item.id === 'Microsoft.VisualStudio.Manifests.VisualStudio'
-    })
-    const catalogUrl = catalog.payloads[0].url
-    const catalogJson = await (await fetch(catalogUrl)).json()
-    
-    // Install Win SDK separately, because the installer won't work
-    await installWindowsSDK({ catalogJson, isDryRun })
 }
 
 yargs
