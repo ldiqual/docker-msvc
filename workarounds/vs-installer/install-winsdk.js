@@ -13,6 +13,8 @@ const rp = require('request-promise')
 
 const utils = require('./lib/utils')
 
+tmp.setGracefulCleanup()
+
 function isSupportedInstallCondition(installCondition) {
         
     if (!installCondition) {

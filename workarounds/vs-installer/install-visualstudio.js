@@ -10,6 +10,8 @@ const yargs = require('yargs')
 
 const utils = require('./lib/utils')
 
+tmp.setGracefulCleanup()
+
 function findPackageAndDependencies({ json, id, chip }) {
     
     const packages = _.filter(json.packages, pkg => {
