@@ -141,7 +141,7 @@ async function run({ installDir, isDryRun }) {
         return _.map(pkg.payloads, payload => {
             return {
                 src: `${downloadUrl}${payload.urlPath}`,
-                dst: path.join(downloadDir, payload.fileName),
+                dst: path.join(downloadDir, pkg.id, payload.fileName),
                 size: payload.size
             }
         })
@@ -176,7 +176,7 @@ async function run({ installDir, isDryRun }) {
         }
         
         await utils.runCommand('msiexec', [
-            '/i', path.join(downloadDir, msiPayload.fileName),
+            '/i', path.join(downloadDir, pkg.id, msiPayload.fileName),
             ..._.map(installParams, (value, key) => `${key}=${value}`),
             '/qn',
         ], {
