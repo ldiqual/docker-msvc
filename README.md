@@ -7,7 +7,7 @@ What's in it
 ------------
 
  - Ubuntu 18.04
- - Wine 4.16 and winetricks
+ - Wine 4.16 on a 32-bit prefix, winetricks
  - Visual Studio 2017 with the following components and their required dependencies:
    - `Microsoft.VisualStudio.Product.BuildTools`: Visual Studio Build Tools
    - `Microsoft.VisualStudio.Workload.VCTools`: Visual Studio C++ Build Tools
