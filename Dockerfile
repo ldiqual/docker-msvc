@@ -75,7 +75,7 @@ WORKDIR /home/wineuser
 
 # Create a 32-bit wine prefix and install .NET
 RUN WINEARCH=win32 xvfb-run --auto-servernum wine wineboot --init \
-    && xvfb-run --auto-servernum winetricks -q dotnet461 cmd \
+    && xvfb-run --auto-servernum winetricks -q dotnet461 cmd msxml6 \
     && wineserver -w
 
 # Prepare node environment
