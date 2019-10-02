@@ -5,3 +5,5 @@ workarounds/vs-installer/.nvmrc
 .git
 .github
 notes/
+node.sh
+build.sh

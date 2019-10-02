@@ -72,6 +72,7 @@ ENV ADDONS_C_URL=
 # Now we're wineuser
 USER wineuser:wineuser
 WORKDIR /home/wineuser
+ENV WINEDEBUG=fixme-all
 
 # Create a 32-bit wine prefix and install .NET
 RUN WINEARCH=win32 xvfb-run --auto-servernum wine wineboot --init \
@@ -80,15 +81,15 @@ RUN WINEARCH=win32 xvfb-run --auto-servernum wine wineboot --init \
 
 # Prepare node environment
 # Only package*.json and libs are copied so that build steps can be re-run without downloading everything again.
-RUN mkdir ${HOME}/vs-installer
+RUN mkdir "${HOME}/vs-installer"
 COPY workarounds/vs-installer/package*.json /home/wineuser/vs-installer/
-RUN mkdir ${HOME}/vs-installer/lib
+RUN mkdir "${HOME}/vs-installer/lib"
 COPY workarounds/vs-installer/lib/* /home/wineuser/vs-installer/lib/
-RUN cd ${HOME}/vs-installer && npm install
+RUN cd "${HOME}/vs-installer" && npm install
 
 # Install Windows SDK
 COPY workarounds/vs-installer/install-winsdk.js /home/wineuser/vs-installer/
-RUN cd ${HOME}/vs-installer \
+RUN cd "${HOME}/vs-installer" \
     && xvfb-run --auto-servernum node ./install-winsdk.js \
     && wine reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v10.0" /v InstallationFolder /t REG_SZ /d "C:\Program Files\Windows Kits\10\\" /f \
     && wineserver -w
@@ -96,29 +97,32 @@ RUN cd ${HOME}/vs-installer \
 # Install Build Tools
 # Workaround for https://bugs.winehq.org/show_bug.cgi?id=47785 which prevents vs_BuildTools.exe from validating microsoft certificates
 COPY workarounds/vs-installer/install-visualstudio.js /home/wineuser/vs-installer/
-RUN mkdir ${HOME}/.wine/drive_c/BuildTools \
-    && cd ${HOME}/vs-installer \
+RUN mkdir "${HOME}/.wine/drive_c/BuildTools" \
+    && cd "${HOME}/vs-installer" \
     && xvfb-run --auto-servernum node ./install-visualstudio.js \
-        --installDir ${HOME}/.wine/drive_c/BuildTools \
+        --installDir "${HOME}/.wine/drive_c/BuildTools" \
     && wineserver -w
     
-RUN rm -rf ${HOME}/vs-installer
+RUN rm -rf "${HOME}/vs-installer"
 
 # Install Python 2.7
-RUN wget https://www.python.org/ftp/python/2.7.16/python-2.7.16.msi -O ${HOME}/python-2.7.16.msi \
-    && wine msiexec /i ${HOME}/python-2.7.16.msi /q \
-    && rm ${HOME}/python-2.7.16.msi \
+RUN wget https://www.python.org/ftp/python/2.7.16/python-2.7.16.msi -O "${HOME}/python-2.7.16.msi" \
+    && wine msiexec /i "${HOME}/python-2.7.16.msi" /q \
+    && rm "${HOME}/python-2.7.16.msi" \
     && wineserver -w
     
 # Patch VsDevCmd.bat to workaround https://bugs.winehq.org/show_bug.cgi?id=47791
 COPY workarounds/VsDevCmd.bat.patch /home/wineuser/VsDevCmd.bat.patch
 RUN patch \
-    ${HOME}/.wine/drive_c/BuildTools/Common7/Tools/VsDevCmd.bat \
-    ${HOME}/VsDevCmd.bat.patch \
-    && rm ${HOME}/VsDevCmd.bat.patch
+    "${HOME}/.wine/drive_c/BuildTools/Common7/Tools/VsDevCmd.bat" \
+    "${HOME}/VsDevCmd.bat.patch" \
+    && rm "${HOME}/VsDevCmd.bat.patch"
 
 # Install which.exe which serves as a replacement for the missing where.exe
-RUN wget http://www.malsmith.net/download/?obj=which/latest-stable/win32-unicode/which.exe -O ${HOME}/.wine/drive_c/windows/system32/which.exe \
-    && ln -s ${HOME}/.wine/drive_c/windows/system32/which.exe ${HOME}/.wine/drive_c/windows/system32/where.exe
+RUN wget http://www.malsmith.net/download/?obj=which/latest-stable/win32-unicode/which.exe -O "${HOME}/.wine/drive_c/windows/system32/which.exe" \
+    && ln -s "${HOME}/.wine/drive_c/windows/system32/which.exe" "${HOME}/.wine/drive_c/windows/system32/where.exe"
+    
+# Install Windows XP cmd.exe to work around limitation in win 2000's cmd.exe input length
+RUN wget http://originaldll.com/download/40172.exe -O "${HOME}/.wine/drive_c/windows/system32/cmd.exe"
 
 ENTRYPOINT ["bash"]
