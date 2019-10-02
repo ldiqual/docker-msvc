@@ -208,6 +208,7 @@ async function run({ installDir, isDryRun, listPackages, basePackages, extraPack
     
     // Download manifest
     const manifestUrl = 'https://aka.ms/vs/15/release/channel'
+    console.log(`Downloading manifest at ${manifestUrl}`)
     const manifest = await (await fetch(manifestUrl)).json()
     
     // Extract catalog url from manifest and download it
@@ -216,12 +217,27 @@ async function run({ installDir, isDryRun, listPackages, basePackages, extraPack
         return item.type.toLowerCase() === 'manifest' && item.id === 'Microsoft.VisualStudio.Manifests.VisualStudio'
     })
     const catalogUrl = catalog.payloads[0].url
+    console.log(`Downloading catalog at ${catalogUrl}`)
     const catalogJson = await (await fetch(catalogUrl)).json()
+    console.log('')
+    
+    // Add name field to all packages, that includes version + arch
+    // This is used for debugging, listing packages, and deduplication
+    // Gather all packages and generate a unique name
+    // @warning this adds the name field in place.
+    _.forEach(catalogJson.packages, pkg => {
+        pkg.name = `${pkg.id} chip=${pkg.chip || 'neutral'} version=${pkg.version} language=${pkg.language || 'neutral'}`
+    })
     
     if (listPackages) {
-        for (const pkg of catalogJson.packages) {
-            console.log(pkg.id)
-        }
+        const grouped = _.groupBy(catalogJson.packages, 'id')
+        _.forEach(grouped, (packages, pkgId) => {
+            console.log(pkgId)
+            for (const pkg of packages) {
+                console.log(`    chip=${pkg.chip || 'neutral'} version=${pkg.version} language=${pkg.language || 'neutral'}`)
+            }
+            console.log('')
+        })
         return
     }
     
@@ -247,16 +263,8 @@ async function run({ installDir, isDryRun, listPackages, basePackages, extraPack
         })
     }))
     
-    // Gather all packages and generate a unique name
-    const allPackagesWithName = _.map(allPackages, pkg => {
-        return {
-            ...pkg,
-            name: `${pkg.id},${pkg.chip || 'neutral'},${pkg.version}`
-        }
-    })
-    
     // Remove duplicates
-    const uniquePackages = _.uniqBy(allPackagesWithName, 'name')
+    const uniquePackages = _.uniqBy(allPackages, 'name')
     
     console.log('Packages to install', _.map(uniquePackages, 'name'))
     
