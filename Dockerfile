@@ -123,6 +123,6 @@ RUN wget http://www.malsmith.net/download/?obj=which/latest-stable/win32-unicode
     && ln -s "${HOME}/.wine/drive_c/windows/system32/which.exe" "${HOME}/.wine/drive_c/windows/system32/where.exe"
     
 # Install Windows XP cmd.exe to work around limitation in win 2000's cmd.exe input length
-RUN wget http://originaldll.com/download/40172.exe -O "${HOME}/.wine/drive_c/windows/system32/cmd.exe"
+RUN wget 'http://files.exefiles.com/initial/c/cmd-exe/6d778e0f95447e6546553eeea709d03c/cmd.exe' -O "${HOME}/.wine/drive_c/windows/system32/cmd.exe"
 
 ENTRYPOINT ["bash"]
