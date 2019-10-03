@@ -39,6 +39,8 @@ function findPackageAndDependencies({ json, id, chip }) {
         return []
     }
     
+    // .Net is downloaded as part of winetricks
+    // VS Initializer is an installer we can't run on wine
     const ignoredDependencies = [
         'Microsoft.Net.4.6.1.FullRedist.Threshold',
         'Microsoft.Net.4.6.1.FullRedist.NonThreshold',
