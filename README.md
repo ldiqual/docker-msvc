@@ -19,7 +19,7 @@ What's in it
    - OptionId.DesktopCPPx86
    - OptionId.DesktopCPPx64
  - Microsoft .NET 4.6.1
- - Windows 2000 Command Prompt
+ - Windows XP Command Prompt
  - Python 2.7
  
 Usage
