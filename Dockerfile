@@ -36,7 +36,7 @@ RUN wget https://dl.winehq.org/wine-builds/winehq.key \
     && add-apt-repository ppa:cybermax-dexter/sdl2-backport \
     && dpkg --add-architecture i386 \
     && apt-get update \
-    && apt-get install -y --no-install-recommends winehq-devel=${WINE_VERSION}~bionic \
+    && apt-get install -y --install-recommends winehq-devel=${WINE_VERSION}~bionic \
     && rm winehq.key \
     && rm -rf /var/lib/apt/lists/* 
 
@@ -125,4 +125,4 @@ RUN wget http://www.malsmith.net/download/?obj=which/latest-stable/win32-unicode
 # Install Windows XP cmd.exe to work around limitation in win 2000's cmd.exe input length
 RUN wget 'http://files.exefiles.com/initial/c/cmd-exe/6d778e0f95447e6546553eeea709d03c/cmd.exe' -O "${HOME}/.wine/drive_c/windows/system32/cmd.exe"
 
-ENTRYPOINT ["bash"]
+CMD ["bash"]

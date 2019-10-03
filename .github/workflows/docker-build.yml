@@ -7,17 +7,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - run: echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    - run: docker build . -t ldiqual/docker-msvc:latest
-    - run: docker push ldiqual/docker-msvc:latest
-    - name: Update Docker Hub Description
-      uses: peter-evans/dockerhub-description@v2.0.0
-      env:
-        DOCKERHUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKERHUB_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        DOCKERHUB_REPOSITORY: ldiqual/docker-msvc
+      - uses: actions/checkout@v1
+      - run: echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      - run: docker build . -t ldiqual/docker-msvc:latest
+      - run: docker push ldiqual/docker-msvc:latest
+      - name: Update Docker Hub Description
+        uses: peter-evans/dockerhub-description@v2.0.0
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          DOCKERHUB_REPOSITORY: ldiqual/docker-msvc
+      - name: Test by building Node.js
+        run: git clone -b v10.16.3 --depth 1 git@github.com:nodejs/node.git \
+          && sed -i '' 's/\|\| exit \/b 1//' node/vcbuild.bat \
+          && docker run \
+            --volume ${PWD}/node2:/home/wineuser/workdir \
+            --env WINEDEBUG=-all \
+            -it ldiqual/docker-msvc:local \
+            wine cmd /c "C:\BuildTools\VC\Auxiliary\Build\vcvars32.bat & workdir\vcbuild projgen x86 static openssl-no-asm noetw without-intl"
     
