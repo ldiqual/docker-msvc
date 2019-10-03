@@ -7,7 +7,6 @@ const tmp = require('tmp-promise')
 const decompress = require('decompress')
 const fetch = require('node-fetch')
 const yargs = require('yargs')
-const semver = require('semver')
 
 const utils = require('./lib/utils')
 
