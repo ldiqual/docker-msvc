@@ -7,6 +7,7 @@ const tmp = require('tmp-promise')
 const decompress = require('decompress')
 const fetch = require('node-fetch')
 const yargs = require('yargs')
+const semver = require('semver')
 
 const utils = require('./lib/utils')
 
@@ -15,19 +16,29 @@ tmp.setGracefulCleanup()
 function findPackageAndDependencies({ json, id, chip }) {
     
     const packages = _.filter(json.packages, pkg => {
-                
+        
+        // Ignore packages that don't have the specified ID
         const hasSameId = pkg.id.toLowerCase() === id.toLowerCase()
         if (!hasSameId) {
             return false
         }
         
+        // Ignore packages that don't have the specified chip and aren't neutral
         if (chip) {
             const hasSameChip = pkg.chip.toLowerCase() === chip.toLowerCase()
             const isChipNeutral = pkg.chip.toLowerCase() === 'neutral'
-            return hasSameChip || isChipNeutral
+            if (!hasSameChip && !isChipNeutral) {
+                return false
+            }
         }
         
+        // Ignore unsupported archs
         if (pkg.chip && _.includes(['x64', 'arm64'], pkg.chip.toLowerCase())) {
+            return false
+        }
+        
+        // Ignore non-US packages
+        if (pkg.language && !_.includes(['en-us', 'neutral'], pkg.language.toLowerCase())) {
             return false
         }
         
@@ -243,14 +254,6 @@ async function run({ installDir, isDryRun, listPackages, basePackages, extraPack
         return
     }
     
-    // Only look for english or neutral packages
-    const onlyEnglish = {
-        ...catalogJson,
-        packages: catalogJson.packages.filter(pkg => {
-            return _.isUndefined(pkg.language) || pkg.language === 'en-US' || pkg.language === 'neutral'
-        })
-    }
-    
     const rootPackagesIds = [
         ...basePackages,
         ...extraPackages
@@ -260,7 +263,7 @@ async function run({ installDir, isDryRun, listPackages, basePackages, extraPack
     
     const allPackages = _.flatten(_.map(rootPackagesIds, pkg => {
         return findPackageAndDependencies({
-            json: onlyEnglish,
+            json: catalogJson,
             id: pkg
         })
     }))
@@ -268,7 +271,7 @@ async function run({ installDir, isDryRun, listPackages, basePackages, extraPack
     // Remove duplicates
     const uniquePackages = _.uniqBy(allPackages, 'name')
     
-    console.log('Packages to install', _.map(uniquePackages, 'name'))
+    console.log(`${uniquePackages.length} packages to install`, _.map(uniquePackages, 'name'))
     
     // Install all packages
     await installPackages({
